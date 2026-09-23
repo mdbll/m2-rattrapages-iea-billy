@@ -118,6 +118,32 @@ Le modèle est évalué sur le jeu de test (les 9 personnes qui n'ont pas servi 
 - **Marcher / monter / descendre** : quelques confusions entre les trois (par exemple 21 `WALKING_DOWNSTAIRS` prédits `WALKING`), car ce sont des mouvements proches, surtout sur des fenêtres courtes de 2,56 s.
 - **Une erreur bizarre** : 27 `LAYING` et 25 `SITTING` prédits `WALKING_UPSTAIRS`. Je ne m'attendais pas à ça. Mon hypothèse est que ça vient de certaines personnes du test qui portaient le téléphone un peu différemment (orientation).
 
+## Export TensorFlow Lite
+
+Le code est dans `src/export_tflite.py` (à lancer après l'entraînement) :
+
+```bash
+python src/export_tflite.py
+```
+
+Le modèle Keras est converti en **TensorFlow Lite**, le format utilisé pour faire tourner des modèles sur mobile et sur microcontrôleur (avec TensorFlow Lite Micro). Le fichier exporté est `models/har_cnn.tflite`.
+
+J'ai activé l'optimisation par défaut du convertisseur (`tf.lite.Optimize.DEFAULT`), qui fait une **quantification dynamique** : les poids sont stockés en int8 au lieu de float32, mais les entrées et sorties restent en float32 (donc on peut l'utiliser exactement comme le modèle Keras).
+
+Pour vérifier que la conversion n'a rien cassé, le script relance l'évaluation sur le test avec le modèle TFLite :
+
+| | Taille du fichier | Accuracy (test) |
+|---|---|---|
+| Keras (`.keras`) | 113,8 Ko | 90,6 % |
+| TFLite quantifié (`.tflite`) | **16,0 Ko** | 90,7 % |
+
+Le modèle est environ 7 fois plus petit et la quantification ne fait pas perdre de précision (la petite différence de 0,1 % vient des arrondis). Le fichier `.keras` est plus gros parce qu'il contient aussi la config, l'état de l'optimiseur, etc.
+
+Remarque : TensorFlow affiche un warning qui dit que `tf.lite.Interpreter` est déprécié et sera remplacé par le package `ai_edge_litert` (LiteRT). Ça marche toujours avec TensorFlow 2.21, donc je l'ai laissé comme ça.
+
 ## Sources
 
 - UCI HAR Dataset : https://archive.ics.uci.edu/dataset/240/human+activity+recognition+using+smartphones
+- Conversion TensorFlow Lite : https://www.tensorflow.org/lite/models/convert
+- Quantification post-entraînement : https://www.tensorflow.org/lite/performance/post_training_quantization
+- Migration vers LiteRT (warning de dépréciation) : https://ai.google.dev/edge/litert/migration
