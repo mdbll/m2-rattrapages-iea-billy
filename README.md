@@ -31,6 +31,18 @@ J'utilise le dataset **UCI HAR** (Human Activity Recognition Using Smartphones).
 C'est un dataset très utilisé, il a plus de 3 classes et il est déjà propre.
 Le dataset n'est pas versionné dans le repo, il faut le télécharger avec le script ci-dessus.
 
+## Préparation des données
+
+Le code est dans `src/data.py` (on peut le lancer avec `python src/data.py` pour afficher les dimensions et la répartition des classes).
+
+- **Signaux utilisés** : j'utilise directement les signaux bruts (`Inertial Signals`) et pas les 561 features déjà calculées du dataset, parce qu'un ESP32 n'aurait pas ces features, il aurait juste les valeurs du capteur. Je garde 6 canaux : `total_acc` x/y/z (accéléromètre avec la gravité) et `body_gyro` x/y/z (gyroscope). Je n'ai pas pris `body_acc` car c'est l'accélération sans la gravité, obtenue avec un filtre, donc ce n'est pas ce qu'un capteur donne directement.
+- **Fenêtres** : déjà découpées dans le dataset, chaque exemple a la forme `(128, 6)`.
+- **Nettoyage** : je retire les fenêtres qui contiennent des valeurs manquantes (en pratique il n'y en a pas, le dataset est propre).
+- **Normalisation** : pour chaque canal, je soustrais la moyenne et je divise par l'écart-type. Ces valeurs sont calculées **uniquement sur le train** puis appliquées au test, pour ne pas utiliser d'informations du test pendant l'entraînement.
+- **Labels** : passés de 1-6 à 0-5.
+
+Répartition des classes dans le train : entre 986 (`WALKING_DOWNSTAIRS`) et 1407 (`LAYING`) fenêtres, donc à peu près équilibré.
+
 ## Sources
 
 - UCI HAR Dataset : https://archive.ics.uci.edu/dataset/240/human+activity+recognition+using+smartphones
