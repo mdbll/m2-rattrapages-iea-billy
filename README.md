@@ -43,6 +43,44 @@ Le code est dans `src/data.py` (on peut le lancer avec `python src/data.py` pour
 
 Répartition des classes dans le train : entre 986 (`WALKING_DOWNSTAIRS`) et 1407 (`LAYING`) fenêtres, donc à peu près équilibré.
 
+## Modèle
+
+Le code est dans `src/train.py` :
+
+```bash
+python src/train.py
+```
+
+Le modèle est sauvegardé dans `models/har_cnn.keras`, et la moyenne et l'écart-type de normalisation dans `models/norm_stats.json` (on en aura besoin pour normaliser les nouvelles données de la même façon).
+
+### Architecture
+
+Un petit réseau convolutif 1D (CNN), parce que les convolutions 1D marchent bien sur des séries temporelles et que ça reste léger :
+
+| Couche | Sortie | Paramètres |
+|---|---|---|
+| Entrée | (128, 6) | 0 |
+| Conv1D 16 filtres, noyau 5, ReLU | (124, 16) | 496 |
+| MaxPooling1D (2) | (62, 16) | 0 |
+| Conv1D 32 filtres, noyau 5, ReLU | (58, 32) | 2 592 |
+| MaxPooling1D (2) | (29, 32) | 0 |
+| Conv1D 32 filtres, noyau 3, ReLU | (27, 32) | 3 104 |
+| GlobalAveragePooling1D | (32) | 0 |
+| Dropout 0.3 | (32) | 0 |
+| Dense 6, softmax | (6) | 198 |
+
+**Total : 6 390 paramètres** (environ 25 Ko en float32).
+
+J'ai utilisé un `GlobalAveragePooling1D` à la place d'un `Flatten` + grosse couche Dense, ça évite d'avoir des milliers de poids en plus à la fin du réseau.
+
+### Entraînement
+
+- optimiseur Adam, loss `sparse_categorical_crossentropy`
+- batch de 32, 30 epochs maximum
+- 20 % du train gardé pour la validation (`validation_split`)
+- early stopping sur la loss de validation (patience 5), on garde les meilleurs poids
+- seed fixée à 42 pour pouvoir reproduire les résultats
+
 ## Sources
 
 - UCI HAR Dataset : https://archive.ics.uci.edu/dataset/240/human+activity+recognition+using+smartphones
