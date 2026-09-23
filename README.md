@@ -81,6 +81,43 @@ J'ai utilisé un `GlobalAveragePooling1D` à la place d'un `Flatten` + grosse co
 - early stopping sur la loss de validation (patience 5), on garde les meilleurs poids
 - seed fixée à 42 pour pouvoir reproduire les résultats
 
+## Évaluation
+
+Le code est dans `src/evaluate.py` (à lancer après l'entraînement) :
+
+```bash
+python src/evaluate.py
+```
+
+Le modèle est évalué sur le jeu de test (les 9 personnes qui n'ont pas servi à l'entraînement). Les résultats sont enregistrés dans `results/metrics.txt` et `results/confusion_matrix.png`.
+
+### Résultats
+
+- **Accuracy : 90,6 %**
+- **F1-score macro : 0,907** (moyenne du F1 de chaque classe, sans tenir compte du nombre d'exemples par classe)
+
+| Activité | Précision | Rappel | F1-score |
+|---|---|---|---|
+| WALKING | 0.932 | 0.992 | 0.961 |
+| WALKING_UPSTAIRS | 0.872 | 0.924 | 0.897 |
+| WALKING_DOWNSTAIRS | 0.943 | 0.943 | 0.943 |
+| SITTING | 0.815 | 0.827 | 0.821 |
+| STANDING | 0.878 | 0.812 | 0.844 |
+| LAYING | 1.000 | 0.950 | 0.974 |
+
+![Matrice de confusion](results/confusion_matrix.png)
+
+### Analyse
+
+**Ce qui est bien reconnu :**
+- `WALKING` (99 % de rappel) et `LAYING` (100 % de précision) sont les mieux reconnus. Pour `LAYING` c'est logique : le téléphone est à l'horizontale, donc la gravité est sur un autre axe que pour toutes les autres activités.
+- Les activités « en mouvement » (marcher, monter, descendre) ne sont presque jamais confondues avec les activités « statiques » (assis, debout, allongé). Le modèle sépare bien les deux groupes.
+
+**Ce qui est confondu :**
+- **`SITTING` / `STANDING`** : c'est la plus grosse erreur (92 `STANDING` prédits `SITTING` et 60 dans l'autre sens). C'est normal : dans les deux cas la personne ne bouge pas et le téléphone est à la ceinture à peu près dans la même orientation, donc les signaux se ressemblent beaucoup. Il n'y a que de petites différences d'inclinaison.
+- **Marcher / monter / descendre** : quelques confusions entre les trois (par exemple 21 `WALKING_DOWNSTAIRS` prédits `WALKING`), car ce sont des mouvements proches, surtout sur des fenêtres courtes de 2,56 s.
+- **Une erreur bizarre** : 27 `LAYING` et 25 `SITTING` prédits `WALKING_UPSTAIRS`. Je ne m'attendais pas à ça. Mon hypothèse est que ça vient de certaines personnes du test qui portaient le téléphone un peu différemment (orientation).
+
 ## Sources
 
 - UCI HAR Dataset : https://archive.ics.uci.edu/dataset/240/human+activity+recognition+using+smartphones
