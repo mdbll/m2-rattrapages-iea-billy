@@ -18,6 +18,20 @@ pip install -r requirements.txt
 python scripts/download_data.py
 ```
 
+### Lancer tout le projet
+
+Le modèle entraîné est déjà dans `models/`, donc on peut lancer directement la simulation. Pour tout refaire depuis le début, les commandes sont à lancer dans cet ordre (depuis la racine du projet, avec le venv activé) :
+
+```bash
+python src/train.py              # entraîne le modèle -> models/har_cnn.keras + models/norm_stats.json
+python src/evaluate.py           # métriques sur le test -> results/
+python src/export_tflite.py      # export -> models/har_cnn.tflite
+python src/make_sensor_file.py   # crée le fichier capteur -> data/sensor_stream.csv
+python src/simulate.py --speed 10
+```
+
+Le téléchargement du dataset est obligatoire même pour la simulation seule, parce que le fichier capteur est construit à partir du dataset.
+
 ## Dataset
 
 J'utilise le dataset **UCI HAR** (Human Activity Recognition Using Smartphones).
@@ -197,9 +211,40 @@ Le temps change selon la vitesse de simulation : environ 0,085 ms avec `--speed 
 
 Dans tous les cas le temps sur ordinateur est très faible et ne représente pas ce qu'on aurait sur un ESP32, qui est beaucoup moins puissant.
 
+## Déploiement sur microcontrôleur
+
+**Est-ce pertinent ?** Oui, le modèle est assez petit pour un ESP32 (240 MHz, 520 Ko de RAM, 4 Mo de flash) : il fait 16 Ko, la mémoire de travail nécessaire est de quelques dizaines de Ko, et une prédiction toutes les 1,28 s laisse beaucoup de temps pour le calcul. Je n'ai pas pu le vérifier sur une vraie carte.
+
+**Optimisations nécessaires :**
+
+- **Quantification int8 complète** : mon export utilise une quantification dynamique (poids en int8 mais calculs en float), et ce type de modèle n'est pas bien supporté par TensorFlow Lite Micro. Il faudrait refaire la conversion en full int8 avec un « representative dataset » (quelques exemples du train). Ce serait aussi plus rapide sur l'ESP32.
+- **Convertir le modèle en tableau C** (`xxd -i har_cnn.tflite > model.h`) pour l'inclure dans le firmware, et écrire les valeurs de normalisation en dur dans le code.
+
+## Limites
+
+- **Dataset de laboratoire** : smartphone à la ceinture, 30 personnes, conditions contrôlées. Avec un autre capteur (par exemple un MPU6050) ou placé autrement, il faudrait sûrement réentraîner le modèle.
+- **Confusion assis / debout** : c'est la plus grosse faiblesse du modèle (F1 de 0,82 et 0,84).
+- **Temps d'inférence mesuré sur PC** : il ne représente pas le temps réel sur un microcontrôleur.
+
+## Démarche et essais
+
+Ce que j'ai rencontré pendant le projet :
+
+- **Python 3.14** : au début j'ai voulu utiliser le Python installé par défaut sur ma machine (3.14), mais TensorFlow ne s'installait pas. En regardant les versions disponibles, TensorFlow 2.21 n'existe que pour Python 3.10 à 3.13, donc j'ai créé l'environnement avec Python 3.11.
+- **Archive du dataset** : le zip téléchargé sur le site UCI contient un autre zip à l'intérieur (`UCI HAR Dataset.zip`), il a fallu extraire les deux dans le script.
+- **Choix des données** : j'ai hésité entre utiliser les 561 features déjà calculées (plus simple, et les résultats dans la littérature sont un peu meilleurs) et les signaux bruts. J'ai choisi les signaux bruts parce que sur un ESP32, calculer 561 features à chaque fenêtre serait lourd et compliqué, alors qu'un CNN apprend directement sur les données du capteur. Pour la même raison je n'ai gardé que les 6 canaux qu'un vrai capteur donne (accéléromètre + gyroscope) et pas `body_acc` qui est calculé avec un filtre.
+- **Warning TFLite** : TensorFlow affiche que `tf.lite.Interpreter` est déprécié au profit de LiteRT. Comme ça fonctionne encore, je ne suis pas passé à LiteRT pour ne pas ajouter une dépendance en plus.
+- **Temps d'inférence variable** : en lançant la simulation à différentes vitesses, j'ai eu des temps qui variaient d'un facteur 10 (voir la partie Simulation). J'ai donc donné un intervalle plutôt qu'une seule valeur.
+- **Erreur LAYING → WALKING_UPSTAIRS** : je n'ai pas trouvé d'explication sûre (voir Analyse).
+
 ## Sources
 
 - UCI HAR Dataset : https://archive.ics.uci.edu/dataset/240/human+activity+recognition+using+smartphones
 - Conversion TensorFlow Lite : https://www.tensorflow.org/lite/models/convert
 - Quantification post-entraînement : https://www.tensorflow.org/lite/performance/post_training_quantization
 - Migration vers LiteRT (warning de dépréciation) : https://ai.google.dev/edge/litert/migration
+- Versions Python supportées par TensorFlow : https://pypi.org/project/tensorflow/#files
+- TensorFlow Lite Micro : https://github.com/tensorflow/tflite-micro
+- TFLite Micro pour ESP32 (Espressif) : https://github.com/espressif/esp-tflite-micro
+- Datasheet ESP32 : https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf
+- Métriques scikit-learn : https://scikit-learn.org/stable/modules/model_evaluation.html
