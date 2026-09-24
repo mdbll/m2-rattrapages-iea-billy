@@ -141,6 +141,62 @@ Le modèle est environ 7 fois plus petit et la quantification ne fait pas perdre
 
 Remarque : TensorFlow affiche un warning qui dit que `tf.lite.Interpreter` est déprécié et sera remplacé par le package `ai_edge_litert` (LiteRT). Ça marche toujours avec TensorFlow 2.21, donc je l'ai laissé comme ça.
 
+## Simulation IoT
+
+L'idée est de reproduire sur l'ordinateur ce que ferait l'ESP32 : recevoir les mesures du capteur une par une, et lancer le modèle automatiquement dès qu'il y a assez de données.
+
+### 1. Créer le fichier « capteur »
+
+```bash
+python src/make_sensor_file.py              # personne n°2 par défaut
+python src/make_sensor_file.py --subject 9  # ou une autre personne du test
+```
+
+Le dataset est découpé en fenêtres qui se chevauchent à 50 %, donc pour retrouver un signal continu je prends les 64 premières mesures de chaque fenêtre, à la suite. Le script écrit `data/sensor_stream.csv` avec une ligne par mesure (6 valeurs du capteur + la vraie activité, uniquement pour comparer). Pour la personne 2 ça donne 19 328 mesures, soit environ 6 min 27 s d'enregistrement à 50 Hz.
+
+J'utilise une personne du **jeu de test**, donc des données que le modèle n'a jamais vues.
+
+### 2. Lancer la simulation
+
+```bash
+python src/simulate.py              # temps réel (50 mesures par seconde), ~6 min 30
+python src/simulate.py --speed 10   # 10x plus vite, ~50 s
+```
+
+Fonctionnement de `src/simulate.py` :
+
+- `read_sensor` lit le CSV ligne par ligne et attend 1/50 s entre chaque ligne (divisé par `--speed`), pour simuler un capteur à 50 Hz.
+- Les mesures sont stockées dans un buffer circulaire (`deque`) de 128 mesures, comme on ferait sur un microcontrôleur.
+- Dès que le buffer est plein, une prédiction est faite **toutes les 64 nouvelles mesures** (1,28 s), comme les fenêtres du dataset.
+- La fenêtre est normalisée avec `models/norm_stats.json` (les mêmes valeurs qu'à l'entraînement), puis envoyée au modèle **TFLite** (`models/har_cnn.tflite`).
+- La console affiche le mouvement détecté, le niveau de confiance (probabilité softmax de la classe prédite) et la vraie activité.
+
+Exemple de sortie :
+
+```
+   time | detected             | confidence | true label
+--------------------------------------------------------------------
+   2.6s | STANDING             |     98.9% | STANDING
+   3.8s | STANDING             |     99.4% | STANDING
+  ...
+ 386.6s | WALKING_UPSTAIRS     |     99.9% | WALKING_UPSTAIRS
+--------------------------------------------------------------------
+Predictions: 301
+Accuracy on the stream: 88.0%
+Average inference time: 0.085 ms
+```
+
+Sur la personne 2 : 301 prédictions et 88 % de bonnes réponses. Presque toutes les erreurs sont des `STANDING` détectés comme `SITTING` (33 sur 36), ce qui correspond à la confusion vue dans la matrice de confusion.
+
+### Taille et temps d'inférence
+
+- **Taille du modèle TFLite : 16,0 Ko**
+- **Temps moyen d'une prédiction : entre 0,01 et 0,1 ms** (mesuré autour de `interpreter.invoke()` uniquement, sur mon Mac)
+
+Le temps change selon la vitesse de simulation : environ 0,085 ms avec `--speed 10` et 0,008 ms quand je lance la simulation sans pause (`--speed 1000`). Je pense que c'est parce que le processeur se met en économie d'énergie pendant les pauses entre les mesures, et qu'il est donc plus lent au moment de la prédiction.
+
+Dans tous les cas le temps sur ordinateur est très faible et ne représente pas ce qu'on aurait sur un ESP32, qui est beaucoup moins puissant.
+
 ## Sources
 
 - UCI HAR Dataset : https://archive.ics.uci.edu/dataset/240/human+activity+recognition+using+smartphones
