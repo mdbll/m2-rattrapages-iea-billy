@@ -1,0 +1,24 @@
+Accuracy: 0.906
+Macro F1-score: 0.907
+
+Classification report:
+                    precision    recall  f1-score   support
+
+           WALKING      0.932     0.992     0.961       496
+  WALKING_UPSTAIRS      0.872     0.924     0.897       471
+WALKING_DOWNSTAIRS      0.943     0.943     0.943       420
+           SITTING      0.815     0.827     0.821       491
+          STANDING      0.878     0.812     0.844       532
+            LAYING      1.000     0.950     0.974       537
+
+          accuracy                          0.906      2947
+         macro avg      0.907     0.908     0.907      2947
+      weighted avg      0.907     0.906     0.906      2947
+
+Confusion matrix (rows = true, columns = predicted):
+[[492   1   3   0   0   0]
+ [ 15 435  21   0   0   0]
+ [ 21   3 396   0   0   0]
+ [  0  25   0 406  60   0]
+ [  0   8   0  92 432   0]
+ [  0  27   0   0   0 510]]
