@@ -2,6 +2,10 @@
 
 Mini-expérimentation de reconnaissance de mouvements.
 
+## Vidéo
+
+Vidéo explicative (démonstration et explication du code) : https://youtu.be/ja5Wy1jbJWQ
+
 ## Installation
 
 Prérequis : Python 3.11. (TensorFlow 2.21 ne fonctionne qu'avec Python 3.10 à 3.13, pas avec 3.14)
